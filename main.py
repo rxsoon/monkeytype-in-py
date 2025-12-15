@@ -68,13 +68,16 @@ if os.path.exists(leaderboard_file):
 
 # ================== FUNCTIONS ==================
 def save_leaderboard(wpm, accuracy):
-    """Save top 10 scores for current word count to JSON file."""
+    """Save top 10 scores for current word count, sorted by WPM * (accuracy / 100)^2."""
     global selected_word_count
     key = str(selected_word_count)
     if key not in leaderboard_data:
         leaderboard_data[key] = []
-    leaderboard_data[key].append({"wpm": wpm, "accuracy": accuracy})
-    leaderboard_data[key] = sorted(leaderboard_data[key], key=lambda x: -x["wpm"])[:10]
+    # calculate score as WPM * (accuracy/100)^2
+    score = int(wpm * (accuracy / 100) ** 2)
+    leaderboard_data[key].append({"wpm": wpm, "accuracy": accuracy, "score": score})
+    # sort by score descending, keep top 10
+    leaderboard_data[key] = sorted(leaderboard_data[key], key=lambda x: x["score"], reverse=True)[:10]
     with open(leaderboard_file, "w") as f:
         json.dump(leaderboard_data, f, indent=4)
 
