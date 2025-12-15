@@ -3,6 +3,7 @@ import random
 import time
 import json
 import os
+import math
 
 pygame.init()
 
@@ -92,23 +93,31 @@ def calc_wpm():
     elapsed = max(time.time() - start_time, 1)
     return int((len(input_text) / 5) / (elapsed / 60))
 
-def get_char_color(index, correct):
-    """Return color of each character based on mode and correctness."""
-    if not correct:
-        return RED
-    if selected_color_mode == "standard":
-        return GREEN
-    elif selected_color_mode == "gradient":
-        r, g, b = 80, 220, 140
-        factor = index / max(len(input_text),1)
-        g_new = int(g * (1-factor) + 100 * factor)
-        return (r, g_new, b)
-    elif selected_color_mode == "rainbow":
-        return rainbow_colors[index % len(rainbow_colors)]
-    elif selected_color_mode == "neon":
-        return (120, 255, 180)
+def get_char_color(index):
+    """Return color of each character based on correctness and color mode."""
+    if index >= len(input_text):
+        return GRAY  # not typed yet
+    elif input_text[index] != TARGET_TEXT[index]:
+        return RED   # wrong
+    else:
+        # correct character, apply color mode
+        t = pygame.time.get_ticks() / 500  # time-based for animation
+        if selected_color_mode == "standard":
+            return GREEN
+        elif selected_color_mode == "gradient":
+            # dynamic gradient using math.sin
+            r = int(80 + 20 * (1 + math.sin(index * 0.3 + t)))
+            g = int(150 + 70 * (1 + math.sin(index * 0.3 + t + 1)))
+            b = int(80 + 20 * (1 + math.sin(index * 0.3 + t + 2)))
+            return (r % 256, g % 256, b % 256)
+        elif selected_color_mode == "rainbow":
+            return rainbow_colors[index % len(rainbow_colors)]
+        elif selected_color_mode == "neon":
+            r = int(120 + 50 * math.sin(t + index * 0.5))
+            g = 255
+            b = int(180 + 50 * math.sin(t + index * 0.5))
+            return (r % 256, g % 256, b % 256)
     return GREEN
-
 def draw_typing_text():
     """Draw visible lines of text with scrolling effect and cursor."""
     x_start = 50
@@ -123,8 +132,7 @@ def draw_typing_text():
 
     # Split text into lines
     for i, char in enumerate(TARGET_TEXT):
-        correct = input_text[i] == char if i < len(input_text) else False
-        color = get_char_color(i, correct)
+        color = get_char_color(i)
         surf = FONT.render(char, True, color)
 
         if x + surf.get_width() > x_start + max_width:
@@ -137,20 +145,8 @@ def draw_typing_text():
     if current_line:
         lines.append(current_line)
 
-    # Determine how many lines should be visible
-    char_count_lines = [sum(1 for _, _, _ in line) for line in lines]
-    cumulative = []
-    total = 0
-    for c in char_count_lines:
-        total += c
-        cumulative.append(total)
-
-    visible_lines = []
-    for idx, line in enumerate(lines):
-        if idx < max_visible_lines or (idx >= max_visible_lines and len(input_text) >= cumulative[idx - 1]):
-            visible_lines.append(line)
-    if len(visible_lines) > max_visible_lines:
-        visible_lines = visible_lines[-max_visible_lines:]
+    # Determine visible lines
+    visible_lines = lines[-max_visible_lines:] if len(lines) > max_visible_lines else lines
 
     # Draw the lines
     y = y_start
@@ -161,12 +157,24 @@ def draw_typing_text():
 
     # Draw cursor
     if not finished and cursor_visible:
-        if visible_lines:
-            last_line = visible_lines[-1]
-            if last_line:
-                last_surf, _, last_x = last_line[-1]
-                cursor = FONT.render("|", True, YELLOW)
-                screen.blit(cursor, (last_x + last_surf.get_width(), y - line_height))
+        # find cursor position
+        typed_len = len(input_text)
+        cursor_x = x_start
+        cursor_y = y_start
+        for line in lines:
+            if typed_len < len(line):
+                for surf, _, x_pos in line:
+                    if typed_len == 0:
+                        cursor_x = x_pos
+                        break
+                    typed_len -= 1
+                break
+            else:
+                typed_len -= len(line)
+                cursor_y += line_height
+        cursor = FONT.render("|", True, YELLOW)
+        screen.blit(cursor, (cursor_x, cursor_y))
+
 
 def reset_game():
     """Reset all game variables to start a new test."""
